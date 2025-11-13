@@ -7,7 +7,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      background: radial-gradient(circle at top, #0f172a, #020617);
+      background: radial-gradient(circle at top, #020617, #020617);
       height: 100vh;
       display: flex;
       align-items: center;
@@ -37,7 +37,7 @@
     }
     .stats {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       font-size: 0.9rem;
       flex-wrap: wrap;
     }
@@ -75,13 +75,14 @@
       height: auto;
       touch-action: none;
     }
+
     .overlay {
       position: absolute;
       inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: radial-gradient(circle at top, rgba(15,23,42,0.9), rgba(15,23,42,0.98));
+      background: radial-gradient(circle at top, rgba(15,23,42,0.97), rgba(15,23,42,0.98));
       color: #e5e7eb;
       flex-direction: column;
       gap: 10px;
@@ -91,9 +92,26 @@
       transition: opacity 0.2s ease;
     }
     .overlay.visible { opacity: 1; pointer-events: auto; }
-    .overlay h1 { font-size: 1.6rem; margin-bottom: 4px; }
-    .overlay p { font-size: 0.9rem; opacity: 0.85; }
-    .overlay button { margin-top: 6px; }
+    .overlay h1 { font-size: 1.7rem; margin-bottom: 4px; }
+    .overlay p { font-size: 0.9rem; opacity: 0.85; max-width: 320px; }
+    .overlay .btn-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
+
+    .skin-row { display: flex; gap: 8px; justify-content: center; margin-top: 4px; }
+    .skin-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      border: 2px solid transparent;
+      padding: 0;
+    }
+    .skin-btn.selected { border-color: #facc15; }
+    #skinPreview {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      margin: 4px auto;
+      box-shadow: 0 0 16px rgba(250, 204, 21, 0.6);
+    }
 
     .mobile-buttons {
       display: flex;
@@ -129,47 +147,59 @@
       <div class="stats">
         <div>Height: <span id="score">0</span> m</div>
         <div>Best: <span id="bestScore">0</span> m</div>
-        <div>Coins: <span id="coins">0</span></div>
         <div>Lives: <span id="lives">3</span></div>
       </div>
       <div class="controls">
         <button id="musicBtn">🔈 Music</button>
-        <button id="shopBtn">🛒 Shop</button>
         <button id="pauseBtn">⏸ Pause</button>
         <button id="resumeBtn">▶ Resume</button>
       </div>
     </div>
+
     <div class="canvas-shell">
       <canvas id="gameCanvas"></canvas>
-      <div id="overlay" class="overlay">
+
+      <!-- START MENU OVERLAY -->
+      <div id="menuOverlay" class="overlay visible">
+        <h1>☁ Infinite Sky Climb</h1>
+        <p>Select your ball skin, then press Start to climb through clouds, space, and the galaxy.</p>
+        <div>
+          <div style="margin-bottom:4px; font-size:0.85rem; opacity:0.85;">Selected Skin</div>
+          <div id="skinPreview"></div>
+          <div class="skin-row">
+            <button class="skin-btn" data-color="#4ade80" title="Mint"></button>
+            <button class="skin-btn" data-color="#f97316" title="Sunset"></button>
+            <button class="skin-btn" data-color="#38bdf8" title="Sky"></button>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button id="startBtn">▶ Start Game</button>
+        </div>
+      </div>
+
+      <!-- GAME OVER OVERLAY -->
+      <div id="gameOverOverlay" class="overlay">
         <h1>Game Over</h1>
-        <p id="gameOverText">Tap Restart to climb again!</p>
-        <button id="restartBtn">🔁 Restart</button>
+        <p id="gameOverText">You reached 0 m. Try again!</p>
+        <div class="btn-row">
+          <button id="restartBtn">🔁 Restart</button>
+          <button id="menuBtn">🏠 Main Menu</button>
+        </div>
       </div>
     </div>
+
     <div class="mobile-buttons">
       <button id="leftBtn" class="mobile-btn">⟵</button>
       <button id="rightBtn" class="mobile-btn">⟶</button>
     </div>
-    <div class="footer">
-      <span id="dailyChallenge"></span>
-    </div>
+    <div class="footer" id="dailyChallenge"></div>
   </div>
 
-  <!-- background music (royalty-free) -->
   <audio id="bgm" loop src="https://cdn.pixabay.com/audio/2022/03/15/audio_3f52b3c172.mp3"></audio>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-    const overlay = document.getElementById("overlay");
-    const scoreEl = document.getElementById("score");
-    const bestScoreEl = document.getElementById("bestScore");
-    const livesEl = document.getElementById("lives");
-    const coinsEl = document.getElementById("coins");
-    const bgm = document.getElementById("bgm");
-    const dailyChallengeEl = document.getElementById("dailyChallenge");
-    const gameOverTextEl = document.getElementById("gameOverText");
 
     function resizeCanvas() {
       const width = document.querySelector(".canvas-shell").clientWidth;
@@ -180,181 +210,212 @@
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
 
-    // === DAILY CHALLENGE (simple) ===
+    // Daily challenge text
+    const dailyChallengeEl = document.getElementById("dailyChallenge");
     (function setDailyChallenge() {
       const today = new Date();
-      const seed = today.getFullYear() * 10000 + (today.getMonth()+1)*100 + today.getDate();
-      const target = 600 + (seed % 1200); // random-ish between 600 and 1800
+      const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+      const target = 500 + (seed % 1000);
       dailyChallengeEl.textContent = `🎯 Daily Challenge: Reach ${target} m today!`;
     })();
 
-    // === GAME STATE ===
-    let player, platforms, enemies, powerUps, particles, coins, boss;
+    // UI elements
+    const scoreEl = document.getElementById("score");
+    const bestScoreEl = document.getElementById("bestScore");
+    const livesEl = document.getElementById("lives");
+    const musicBtn = document.getElementById("musicBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const resumeBtn = document.getElementById("resumeBtn");
+    const bgm = document.getElementById("bgm");
+
+    const menuOverlay = document.getElementById("menuOverlay");
+    const gameOverOverlay = document.getElementById("gameOverOverlay");
+    const gameOverText = document.getElementById("gameOverText");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+    const menuBtn = document.getElementById("menuBtn");
+
+    const skinPreview = document.getElementById("skinPreview");
+    const skinButtons = Array.from(document.querySelectorAll(".skin-btn"));
+
+    const leftBtn = document.getElementById("leftBtn");
+    const rightBtn = document.getElementById("rightBtn");
+
+    // Game state
+    const STATE = { MENU: "menu", PLAY: "play", OVER: "over" };
+    let gameState = STATE.MENU;
+    let paused = false;
+
+    // Player & world
+    let player;
+    let platforms = [];
+    let particles = [];
+    let cloudsLayers = [[], [], []]; // parallax layers
+
     let score = 0;
     let bestScore = parseInt(localStorage.getItem("skyClimbBest") || "0", 10);
     bestScoreEl.textContent = bestScore;
     let lives = 3;
-    let coinCount = 0;
-    coinsEl.textContent = coinCount;
-    let paused = false;
-    let gameOver = false;
-    let started = false;
 
-    const gravityBase = 0.18;
-    let windForce = 0;         // for weather
-    let windTimer = 0;
-    let rainDrops = [];
+    let gravity = 0.25;
 
-    function resetGame() {
-      const startX = canvas.width / 2;
-      const startY = canvas.height - 70;
-      player = {
-        x: startX,
-        y: startY,
-        radius: 18,
-        dx: 0,
-        dy: -5,
-        baseColor: "#4ade80",
-        color: "#4ade80",
-        shield: false,
-        slowMotion: false,
-        jetBoostTime: 0,
-        trail: []
+    // Skins
+    const SKINS = ["#4ade80", "#f97316", "#38bdf8"];
+    let selectedSkin = localStorage.getItem("skyClimbSkin") || SKINS[0];
+
+    function updateSkinUI() {
+      skinPreview.style.background = selectedSkin;
+      skinButtons.forEach((btn) => {
+        const c = btn.getAttribute("data-color");
+        btn.style.background = c;
+        btn.classList.toggle("selected", c === selectedSkin);
+      });
+    }
+
+    skinButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectedSkin = btn.getAttribute("data-color");
+        localStorage.setItem("skyClimbSkin", selectedSkin);
+        updateSkinUI();
+      });
+    });
+    updateSkinUI();
+
+    // Parallax clouds
+    function createCloud(layer) {
+      const width = 60 + Math.random() * 80;
+      const height = 18 + Math.random() * 14;
+      return {
+        layer,
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        w: width,
+        h: height,
+        speedX: (0.2 + Math.random() * 0.4) * (layer + 1) * (Math.random() < 0.5 ? 1 : -1),
+        alpha: 0.15 + 0.1 * layer,
       };
-      platforms = [];
-      enemies = [];
-      powerUps = [];
-      particles = [];
-      coins = [];
-      boss = null;
-      score = 0;
-      lives = 3;
-      paused = false;
-      gameOver = false;
-      overlay.classList.remove("visible");
-      livesEl.textContent = lives;
-      scoreEl.textContent = score;
-      coinCount = coinCount || 0;
-      coinsEl.textContent = coinCount;
-      initPlatforms();
-      spawnInitialEnemies();
-      spawnInitialPowerUps();
-      spawnInitialCoins();
+    }
+
+    function initClouds() {
+      cloudsLayers = [[], [], []];
+      for (let layer = 0; layer < 3; layer++) {
+        const count = 6 + layer * 4;
+        for (let i = 0; i < count; i++) {
+          cloudsLayers[layer].push(createCloud(layer));
+        }
+      }
+    }
+
+    function updateClouds() {
+      cloudsLayers.forEach((layerArr) => {
+        layerArr.forEach((c) => {
+          c.x += c.speedX;
+          if (c.x < -c.w) c.x = canvas.width + c.w;
+          if (c.x > canvas.width + c.w) c.x = -c.w;
+        });
+      });
+    }
+
+    function drawClouds() {
+      cloudsLayers.forEach((layerArr, idx) => {
+        layerArr.forEach((c) => {
+          ctx.save();
+          ctx.globalAlpha = c.alpha;
+          ctx.fillStyle = idx === 0 ? "#f9fafb" : idx === 1 ? "#e5e7eb" : "#cbd5f5";
+          ctx.beginPath();
+          ctx.ellipse(c.x, c.y, c.w, c.h, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        });
+      });
+    }
+
+    // Platforms
+    function createPlatform(y) {
+      return {
+        x: Math.random() * (canvas.width - 100),
+        y,
+        w: 100,
+        h: 14,
+        breakable: Math.random() < 0.3,
+        hits: 0,
+      };
     }
 
     function initPlatforms() {
+      platforms = [];
       const gap = 110;
       for (let i = 0; i < 12; i++) {
-        const y = canvas.height - i * gap;
-        platforms.push(createPlatform(y));
+        platforms.push(createPlatform(canvas.height - i * gap));
       }
     }
 
-    function createPlatform(y) {
+    // Player
+    function createPlayer() {
       return {
-        x: Math.random() * (canvas.width - 120),
-        y,
-        width: 120,
-        height: 14,
-        color: "#38bdf8",
-        durability: Math.random() < 0.3 ? 1 : 3, // breakable vs strong
+        x: canvas.width / 2,
+        y: canvas.height - 80,
+        r: 18,
+        dx: 0,
+        dy: -6,
+        color: selectedSkin,
+        trail: [],
+        shield: false,
       };
     }
 
-    function spawnInitialEnemies() {
-      for (let i = 0; i < 3; i++) {
-        enemies.push(createEnemy(canvas.height - i * 200));
+    // Particles
+    function spawnParticles(x, y, color, count = 12) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x,
+          y,
+          dx: (Math.random() - 0.5) * 3,
+          dy: (Math.random() - 0.5) * 3,
+          life: 30 + Math.random() * 20,
+          color,
+        });
       }
     }
 
-    function createEnemy(y) {
-      const dir = Math.random() < 0.5 ? 1 : -1;
-      return {
-        x: dir === 1 ? -40 : canvas.width + 40,
-        y,
-        width: 40,
-        height: 26,
-        dx: (1.5 + Math.random() * 1.5) * dir,
-        color: "#f97373",
-      };
+    function updateParticles() {
+      particles = particles.filter((p) => {
+        p.x += p.dx;
+        p.y += p.dy;
+        p.dy += 0.04;
+        p.life--;
+        return p.life > 0;
+      });
     }
 
-    function spawnInitialPowerUps() {
-      for (let i = 0; i < 2; i++) {
-        powerUps.push(createPowerUp(canvas.height - 300 - i * 200));
-      }
+    function drawParticles() {
+      particles.forEach((p) => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(p.life / 40, 0);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 3, 3);
+        ctx.restore();
+      });
     }
 
-    function createPowerUp(y) {
-      const types = ["jet", "shield", "slow"];
-      const type = types[Math.floor(Math.random() * types.length)];
-      return {
-        x: Math.random() * (canvas.width - 24) + 12,
-        y,
-        radius: 10,
-        type,
-      };
-    }
-
-    function spawnInitialCoins() {
-      for (let i = 0; i < 4; i++) {
-        coins.push(createCoin(canvas.height - 200 - i * 180));
-      }
-    }
-
-    function createCoin(y) {
-      return {
-        x: Math.random() * (canvas.width - 20) + 10,
-        y,
-        radius: 7
-      };
-    }
-
-    // Boss
-    function maybeSpawnBoss() {
-      if (boss) return;
-      if (score >= 800 && score < 900) {
-        boss = {
-          x: canvas.width / 2 - 50,
-          y: canvas.height * 0.25,
-          width: 100,
-          height: 40,
-          dx: 2.5,
-          hp: 5,
-          active: true
-        };
-      }
-    }
-
-    // === INPUT ===
-    let left = false, right = false;
+    // Input
+    let left = false;
+    let right = false;
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "ArrowLeft") left = true;
       if (e.key === "ArrowRight") right = true;
-      if (!started && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
-        started = true;
-        tryPlayMusic();
-      }
     });
     document.addEventListener("keyup", (e) => {
       if (e.key === "ArrowLeft") left = false;
       if (e.key === "ArrowRight") right = false;
     });
 
-    // Mobile buttons
-    const leftBtn = document.getElementById("leftBtn");
-    const rightBtn = document.getElementById("rightBtn");
-
     function bindTouch(btn, dir) {
       btn.addEventListener("touchstart", (e) => {
         e.preventDefault();
         if (dir === "left") left = true;
         if (dir === "right") right = true;
-        if (!started) {
-          started = true;
-          tryPlayMusic();
-        }
       });
       btn.addEventListener("touchend", (e) => {
         e.preventDefault();
@@ -365,15 +426,7 @@
     bindTouch(leftBtn, "left");
     bindTouch(rightBtn, "right");
 
-    canvas.addEventListener("touchstart", (e) => {
-      if (!started) {
-        started = true;
-        tryPlayMusic();
-      }
-    });
-
-    // === MUSIC & CONTROLS ===
-    const musicBtn = document.getElementById("musicBtn");
+    // Music
     let musicOn = false;
     function tryPlayMusic() {
       if (!musicOn) {
@@ -393,461 +446,198 @@
       }
     });
 
-    document.getElementById("pauseBtn").onclick = () => (paused = true);
-    document.getElementById("resumeBtn").onclick = () => {
-      if (!gameOver) paused = false;
-    };
-    document.getElementById("restartBtn").onclick = () => {
-      resetGame();
-    };
-
-    // Shop: simple skin unlock
-    const shopBtn = document.getElementById("shopBtn");
-    shopBtn.addEventListener("click", () => {
-      if (coinCount >= 20) {
-        coinCount -= 20;
-        coinsEl.textContent = coinCount;
-        // toggle skin
-        if (player.baseColor === "#4ade80") {
-          player.baseColor = "#f97316"; // orange
-        } else {
-          player.baseColor = "#4ade80";
-        }
-        player.color = player.baseColor;
-        alert("Skin changed! (cost 20 coins)");
-      } else {
-        alert("Need at least 20 coins to change skin.");
-      }
+    pauseBtn.addEventListener("click", () => {
+      if (gameState === STATE.PLAY) paused = true;
+    });
+    resumeBtn.addEventListener("click", () => {
+      if (gameState === STATE.PLAY) paused = false;
     });
 
-    // === PARTICLES ===
-    function spawnParticles(x, y, color, count = 10) {
-      for (let i = 0; i < count; i++) {
-        particles.push({
-          x,
-          y,
-          dx: (Math.random() - 0.5) * 4,
-          dy: (Math.random() - 0.5) * 4,
-          life: 30 + Math.random() * 20,
-          color,
-        });
+    // State transitions
+    function goToMenu() {
+      gameState = STATE.MENU;
+      paused = false;
+      menuOverlay.classList.add("visible");
+      gameOverOverlay.classList.remove("visible");
+    }
+
+    function startGame() {
+      // Reset world
+      score = 0;
+      lives = 3;
+      scoreEl.textContent = score;
+      livesEl.textContent = lives;
+
+      initClouds();
+      initPlatforms();
+      player = createPlayer();
+      particles = [];
+
+      gameState = STATE.PLAY;
+      paused = false;
+      menuOverlay.classList.remove("visible");
+      gameOverOverlay.classList.remove("visible");
+      tryPlayMusic();
+    }
+
+    function gameOver() {
+      gameState = STATE.OVER;
+      paused = true;
+      gameOverText.textContent = `You reached ${score} m. Try again!`;
+      gameOverOverlay.classList.add("visible");
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestScoreEl.textContent = bestScore;
+        localStorage.setItem("skyClimbBest", bestScore.toString());
+        gameOverText.textContent = `New High Score: ${score} m 🎉`;
       }
     }
 
-    // === COLLISION HELPERS ===
-    function rectIntersect(ax, ay, aw, ah, bx, by, bw, bh) {
-      return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+    startBtn.addEventListener("click", startGame);
+    restartBtn.addEventListener("click", startGame);
+    menuBtn.addEventListener("click", goToMenu);
+
+    // World gradient by height
+    function getWorldColors() {
+      if (score < 600) return ["#38bdf8", "#1d4ed8"]; // sky
+      if (score < 1400) return ["#0f172a", "#4b21a2"]; // space
+      return ["#020617", "#9333ea"]; // galaxy
     }
 
-    // === WEATHER: WIND + RAIN ===
-    function updateWeather() {
-      windTimer--;
-      if (windTimer <= 0) {
-        // change wind every few seconds
-        windTimer = 240 + Math.floor(Math.random() * 240);
-        windForce = (Math.random() - 0.5) * 0.4; // -0.2 to 0.2
-      }
-
-      // Rain only in higher worlds (Space/Galaxy style)
-      const world = getWorld();
-      if (world >= 1) {
-        if (rainDrops.length < 80) {
-          for (let i = 0; i < 3; i++) {
-            rainDrops.push({
-              x: Math.random() * canvas.width,
-              y: -10,
-              dy: 4 + Math.random() * 3
-            });
-          }
-        }
-        rainDrops.forEach((r, i) => {
-          r.y += r.dy;
-          if (r.y > canvas.height + 10) {
-            rainDrops.splice(i, 1);
-          }
-        });
-      } else {
-        rainDrops = [];
-      }
-    }
-
-    // === WORLD THEMES ===
-    function getWorld() {
-      if (score < 800) return 0;        // Cloud world
-      if (score < 1800) return 1;       // Space
-      return 2;                         // Galaxy
-    }
-
-    function getWorldGradient() {
-      const world = getWorld();
-      if (world === 0) {
-        return ["#38bdf8", "#1d4ed8"]; // blue sky
-      } else if (world === 1) {
-        return ["#0f172a", "#4b21a2"]; // deep space
-      } else {
-        return ["#020617", "#9333ea"]; // galaxy purple
-      }
-    }
-
-    // === MAIN UPDATE ===
+    // Main update
     function update() {
-      if (paused || gameOver) return;
+      if (gameState !== STATE.PLAY || paused) return;
 
-      updateWeather();
-
-      // Horizontal input (with a bit of wind)
-      if (left) player.dx = -4.2 + windForce * 4;
-      else if (right) player.dx = 4.2 + windForce * 4;
-      else player.dx = windForce * 4 * 0.5;
+      // Movement
+      if (left) player.dx = -4;
+      else if (right) player.dx = 4;
+      else player.dx = 0;
 
       player.x += player.dx;
-      if (player.x < -player.radius) player.x = canvas.width + player.radius;
-      if (player.x > canvas.width + player.radius) player.x = -player.radius;
+      if (player.x < -player.r) player.x = canvas.width + player.r;
+      if (player.x > canvas.width + player.r) player.x = -player.r;
 
-      // Gravity & power-ups
-      let gravity = gravityBase;
-      if (player.slowMotion) gravity *= 0.4;
-      if (player.jetBoostTime > 0) {
-        player.dy = -6;
-        player.jetBoostTime--;
-      } else {
-        player.dy += gravity;
-      }
-
+      // Gravity
+      player.dy += gravity;
       player.y += player.dy;
 
-      // trail
-      player.trail.push({ x: player.x, y: player.y, life: 20 });
+      // Trail
+      player.trail.push({ x: player.x, y: player.y, life: 18 });
       if (player.trail.length > 40) player.trail.shift();
 
-      // Platform collisions (only when falling)
+      // Platform collision (only when falling)
       if (player.dy > 0) {
         platforms.forEach((p) => {
           if (
-            player.y + player.radius >= p.y &&
-            player.y + player.radius <= p.y + p.height + 6 &&
+            player.y + player.r >= p.y &&
+            player.y + player.r <= p.y + p.h + 4 &&
             player.x >= p.x &&
-            player.x <= p.x + p.width
+            player.x <= p.x + p.w
           ) {
             player.dy = -7.5;
-            spawnParticles(player.x, p.y, "#38bdf8", 12);
-            p.durability--;
-            if (p.durability <= 0) {
-              spawnParticles(p.x + p.width / 2, p.y, "#60a5fa", 18);
-              p.y = canvas.height + 999; // move out; will be recycled
+            spawnParticles(player.x, p.y, "#e0f2fe", 14);
+            if (p.breakable) {
+              p.hits++;
+              if (p.hits >= 2) {
+                p.y = canvas.height + 999; // will recycle
+              }
             }
           }
         });
       }
-
-      // Enemies movement & collisions
-      enemies.forEach((e) => {
-        e.x += e.dx;
-        if (e.dx > 0 && e.x > canvas.width + 60) {
-          e.x = -60;
-        } else if (e.dx < 0 && e.x < -60) {
-          e.x = canvas.width + 60;
-        }
-
-        if (
-          rectIntersect(
-            player.x - player.radius,
-            player.y - player.radius,
-            player.radius * 2,
-            player.radius * 2,
-            e.x,
-            e.y,
-            e.width,
-            e.height
-          )
-        ) {
-          if (player.shield) {
-            player.shield = false;
-            spawnParticles(player.x, player.y, "#facc15", 20);
-          } else {
-            handleDamage();
-          }
-        }
-      });
-
-      // Boss logic
-      maybeSpawnBoss();
-      if (boss && boss.active) {
-        boss.x += boss.dx;
-        if (boss.x < 0 || boss.x + boss.width > canvas.width) {
-          boss.dx *= -1;
-        }
-
-        // Boss collision
-        if (
-          rectIntersect(
-            player.x - player.radius,
-            player.y - player.radius,
-            player.radius * 2,
-            player.radius * 2,
-            boss.x,
-            boss.y,
-            boss.width,
-            boss.height
-          )
-        ) {
-          if (player.shield) {
-            player.shield = false;
-            spawnParticles(player.x, player.y, "#facc15", 25);
-          } else {
-            handleDamage();
-          }
-        }
-
-        // Hitting boss from top gives damage
-        if (
-          player.dy > 0 &&
-          player.y + player.radius >= boss.y &&
-          player.y + player.radius <= boss.y + boss.height &&
-          player.x >= boss.x &&
-          player.x <= boss.x + boss.width
-        ) {
-          boss.hp--;
-          player.dy = -8;
-          spawnParticles(player.x, boss.y, "#fb7185", 25);
-          if (boss.hp <= 0) {
-            boss.active = false;
-            spawnParticles(boss.x + boss.width / 2, boss.y + boss.height / 2, "#f97316", 40);
-            // reward
-            coinCount += 15;
-            coinsEl.textContent = coinCount;
-          }
-        }
-      }
-
-      // Power-up collisions
-      powerUps.forEach((pu, idx) => {
-        const dist = Math.hypot(player.x - pu.x, player.y - pu.y);
-        if (dist < player.radius + pu.radius) {
-          applyPowerUp(pu.type);
-          spawnParticles(pu.x, pu.y, "#f97316", 20);
-          powerUps.splice(idx, 1);
-        }
-      });
-
-      // Coin collisions
-      coins.forEach((c, idx) => {
-        const dist = Math.hypot(player.x - c.x, player.y - c.y);
-        if (dist < player.radius + c.radius) {
-          coinCount += 1;
-          coinsEl.textContent = coinCount;
-          spawnParticles(c.x, c.y, "#facc15", 15);
-          coins.splice(idx, 1);
-        }
-      });
 
       // Infinite upward scroll
       if (player.y < canvas.height * 0.4) {
         const shift = canvas.height * 0.4 - player.y;
-        player.y = canvas.height * 0.4;
+        player.y += shift;
         score += Math.floor(shift * 0.1);
         scoreEl.textContent = score;
 
-        platforms.forEach((p, i) => {
+        platforms.forEach((p) => {
           p.y += shift;
           if (p.y > canvas.height + 40) {
-            platforms[i] = createPlatform(p.y - canvas.height - 120);
+            p.y -= canvas.height + 160;
+            p.x = Math.random() * (canvas.width - p.w);
+            p.breakable = Math.random() < 0.3;
+            p.hits = 0;
           }
         });
 
-        enemies.forEach((e, i) => {
-          e.y += shift;
-          if (e.y > canvas.height + 60) {
-            enemies[i] = createEnemy(e.y - canvas.height - 200);
-          }
-        });
-
-        powerUps.forEach((pu, i) => {
-          pu.y += shift;
-          if (pu.y > canvas.height + 40) {
-            if (Math.random() < 0.4) {
-              powerUps[i] = createPowerUp(pu.y - canvas.height - 220);
+        cloudsLayers.forEach((layerArr) => {
+          layerArr.forEach((c) => {
+            c.y += shift * 0.2; // slower parallax scroll
+            if (c.y > canvas.height + c.h) {
+              c.y -= canvas.height + 2 * c.h;
             }
-          }
-        });
-
-        coins.forEach((c, i) => {
-          c.y += shift;
-          if (c.y > canvas.height + 40) {
-            if (Math.random() < 0.5) {
-              coins[i] = createCoin(c.y - canvas.height - 180);
-            }
-          }
-        });
-
-        // Difficulty scaling based on score
-        const difficultyFactor = 1 + score / 500;
-        enemies.forEach((e) => {
-          e.dx = Math.sign(e.dx) * (1.5 + Math.random() * 1.5 * difficultyFactor * 0.4);
+          });
         });
       }
 
-      // Player falls below screen
-      if (player.y - player.radius > canvas.height + 60) {
-        handleDamage(true);
+      // Fell below screen
+      if (player.y - player.r > canvas.height + 40) {
+        lives--;
+        livesEl.textContent = lives;
+        spawnParticles(player.x, player.y, "#fecaca", 18);
+        if (lives <= 0) {
+          gameOver();
+        } else {
+          // respawn a bit above middle
+          player.x = canvas.width / 2;
+          player.y = canvas.height * 0.3;
+          player.dy = -6;
+        }
       }
 
-      // Update particles
-      particles.forEach((pt, i) => {
-        pt.x += pt.dx;
-        pt.y += pt.dy;
-        pt.dy += 0.05;
-        pt.life--;
-        if (pt.life <= 0) particles.splice(i, 1);
-      });
-
-      // Update trail
-      player.trail.forEach(t => t.life--);
-      player.trail = player.trail.filter(t => t.life > 0);
+      updateParticles();
+      updateClouds();
     }
 
-    function handleDamage(fall = false) {
-      if (gameOver) return;
-      spawnParticles(player.x, player.y, "#f97373", 25);
-      lives--;
-      livesEl.textContent = lives;
-      if (lives <= 0) {
-        endGame(fall);
-      } else {
-        // reset player position but keep progress
-        player.x = canvas.width / 2;
-        player.y = canvas.height * 0.3;
-        player.dy = -4;
-      }
-    }
-
-    function applyPowerUp(type) {
-      if (type === "shield") {
-        player.shield = true;
-      } else if (type === "slow") {
-        player.slowMotion = true;
-        setTimeout(() => {
-          player.slowMotion = false;
-        }, 4000);
-      } else if (type === "jet") {
-        player.jetBoostTime = 120; // ~2 seconds
-      }
-    }
-
-    function endGame(fall = false) {
-      gameOver = true;
-      paused = true;
-      if (score > bestScore) {
-        bestScore = score;
-        localStorage.setItem("skyClimbBest", bestScore.toString());
-        bestScoreEl.textContent = bestScore;
-        gameOverTextEl.textContent = "New High Score! 🎉";
-      } else {
-        gameOverTextEl.textContent = "You fell from the sky ☁ Try again!";
-      }
-      overlay.classList.add("visible");
-    }
-
+    // Main draw
     function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Background gradient depends on world
-      const [c1, c2] = getWorldGradient();
+      // Background
+      const [c1, c2] = getWorldColors();
       const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
       grad.addColorStop(0, c1);
       grad.addColorStop(1, c2);
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Rain
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.6)";
-      rainDrops.forEach((r) => {
-        ctx.beginPath();
-        ctx.moveTo(r.x, r.y);
-        ctx.lineTo(r.x, r.y + 8);
-        ctx.stroke();
-      });
+      // Clouds
+      drawClouds();
 
       // Platforms
       platforms.forEach((p) => {
-        const alpha = p.durability === 1 ? 0.7 : 1;
+        const alpha = p.breakable ? 0.6 : 1;
         ctx.fillStyle = `rgba(56,189,248,${alpha})`;
-        ctx.fillRect(p.x, p.y, p.width, p.height);
+        ctx.fillRect(p.x, p.y, p.w, p.h);
       });
 
-      // Enemies
-      enemies.forEach((e) => {
-        ctx.fillStyle = e.color;
-        ctx.fillRect(e.x, e.y, e.width, e.height);
-        ctx.fillStyle = "#111827";
-        ctx.fillRect(e.x + 8, e.y + 8, 8, 4);
-        ctx.fillRect(e.x + 24, e.y + 8, 8, 4);
-      });
-
-      // Boss
-      if (boss && boss.active) {
-        ctx.fillStyle = "#f97373";
-        ctx.fillRect(boss.x, boss.y, boss.width, boss.height);
-        // HP bar
-        ctx.fillStyle = "#111827";
-        ctx.fillRect(boss.x, boss.y - 8, boss.width, 5);
-        ctx.fillStyle = "#22c55e";
-        ctx.fillRect(boss.x, boss.y - 8, (boss.hp / 5) * boss.width, 5);
-      }
-
-      // Power-ups
-      powerUps.forEach((pu) => {
-        let color = "#facc15"; // shield
-        if (pu.type === "jet") color = "#22c55e";
-        if (pu.type === "slow") color = "#a855f7";
-        ctx.beginPath();
-        ctx.arc(pu.x, pu.y, pu.radius, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
-      });
-
-      // Coins
-      coins.forEach((c) => {
-        ctx.beginPath();
-        ctx.arc(c.x, c.y, c.radius, 0, Math.PI * 2);
-        ctx.fillStyle = "#facc15";
-        ctx.fill();
-        ctx.strokeStyle = "#eab308";
-        ctx.stroke();
-      });
+      // Particles
+      drawParticles();
 
       // Trail
-      player.trail.forEach(t => {
+      player?.trail.forEach((t) => {
+        ctx.save();
+        ctx.globalAlpha = t.life / 18;
+        ctx.fillStyle = player.color;
         ctx.beginPath();
         ctx.arc(t.x, t.y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(74, 222, 128," + (t.life / 20) + ")";
         ctx.fill();
+        ctx.restore();
+        t.life--;
       });
 
       // Player
-      ctx.beginPath();
-      ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-      ctx.fillStyle = player.baseColor;
-      ctx.shadowColor = player.baseColor;
-      ctx.shadowBlur = 12;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      if (player.shield) {
+      if (player) {
         ctx.beginPath();
-        ctx.arc(player.x, player.y, player.radius + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = "#facc15";
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+        ctx.fillStyle = player.color;
+        ctx.shadowColor = player.color;
+        ctx.shadowBlur = 16;
+        ctx.fill();
+        ctx.shadowBlur = 0;
       }
-
-      // Particles
-      particles.forEach((pt) => {
-        ctx.fillStyle = pt.color;
-        ctx.globalAlpha = Math.max(pt.life / 50, 0);
-        ctx.fillRect(pt.x, pt.y, 3, 3);
-        ctx.globalAlpha = 1;
-      });
     }
 
     function loop() {
@@ -856,9 +646,12 @@
       requestAnimationFrame(loop);
     }
 
-    // INIT
-    resetGame();
+    // Init
+    initClouds();
+    initPlatforms();
+    player = createPlayer();
     loop();
   </script>
 </body>
 </html>
+//Update game with start menu + skins
